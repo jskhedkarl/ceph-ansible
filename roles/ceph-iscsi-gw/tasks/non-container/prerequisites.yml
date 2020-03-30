@@ -9,6 +9,7 @@
           - targetcli
         common_repos:
           - tcmu-runner
+          - python-rtslib
 
     - name: set_fact base iscsi pkgs if new style ceph-iscsi
       set_fact:
@@ -31,14 +32,14 @@
       block:
         - name: ceph-iscsi dependency repositories
           get_url:
-            url: 'https://shaman.ceph.com/api/repos/{{ item }}/master/latest/{{ ansible_distribution | lower }}/{{ ansible_distribution_major_version }}/repo'
+            url: 'https://shaman.ceph.com/api/repos/{{ item }}/{{ ceph_dev_branch }}/{{ ceph_dev_sha1 }}/{{ ansible_distribution | lower }}/{{ ansible_distribution_major_version }}/repo'
             dest: '/etc/yum.repos.d/{{ item }}-dev.repo'
             force: true
           with_items: "{{ common_repos }}"
 
         - name: ceph-iscsi development repository
           get_url:
-            url: 'https://shaman.ceph.com/api/repos/{{ item }}/master/latest/{{ ansible_distribution | lower }}/{{ ansible_distribution_major_version }}/repo'
+            url: 'https://shaman.ceph.com/api/repos/{{ item }}/{{ ceph_dev_branch }}/{{ ceph_dev_sha1 }}/{{ ansible_distribution | lower }}/{{ ansible_distribution_major_version }}/repo'
             dest: '/etc/yum.repos.d/{{ item }}-dev.repo'
             force: true
           with_items: '{{ iscsi_base }}'
@@ -72,13 +73,13 @@
     - target.stat.exists
     - not target.stat.islnk
 
-# Only start tcmu-runner, so configure_iscsi.yml can create disks.
-# We must start rbd-target-gw/api after configure_iscsi.yml to avoid
-# races where they are both trying to setup the same object during
-# a rolling update.
-- name: start tcmu-runner
+- name: start tcmu-runner, rbd-target-api and rbd-target-gw
   service:
-    name: tcmu-runner
+    name: "{{ item }}"
     state: started
     enabled: yes
     masked: no
+  with_items:
+    - tcmu-runner
+    - rbd-target-gw
+    - rbd-target-api

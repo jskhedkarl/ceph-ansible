@@ -1,0 +1,69 @@
+---
+
+- hosts: mons[0]
+  gather_facts: false
+  become: true
+  tasks:
+    - name: Get list of pools
+      shell: "ceph osd lspools | awk '{print $2}'"
+      register: pool_list
+
+    - name: Set flag
+      set_fact:
+        new_pool_present: False
+        current_pool_present: False
+
+    - name: Diplay pool list
+      debug: msg="{{pool_list.stdout}}"
+
+    - block:
+      - name: Check if new pool already present
+        set_fact:
+          new_pool_present: True
+        with_items:
+          - "{{ pool_list.stdout_lines }}"
+        when: new_pool_name == item
+
+      - name: Check if current pool present
+        set_fact:
+          current_pool_present: True
+        with_items:
+          - "{{ pool_list.stdout_lines }}"
+        when: current_pool_name == item
+
+      - name: Rename a exsisting pool
+        command: "ceph osd pool rename {{ current_pool_name }} {{ new_pool_name }}"
+        when:
+          - not new_pool_present
+          - current_pool_present
+
+      - name: Give fatal error if pool name already in use or given pool not exists
+        fail:
+          msg: "The pool name {{ new_pool_name }} is already in use or {{ current_pool_name }} not exists"
+        when:
+          - new_pool_present or not current_pool_name
+
+      when:
+        - new_pool_name is defined
+        - current_pool_name is defined
+
+    - set_fact:
+        pool_name: "{{ new_pool_name | default('{{ current_pool_name }}') }}"
+
+    - block:
+      - name: Set replication size
+        command: "ceph osd pool set {{ pool_name }} size {{ num_replicas }}"
+
+      when: num_replicas is defined
+
+    - block:
+      - name: Set quota size
+        command: "ceph osd pool set-quota {{ pool_name }} max_bytes {{ max_bytes }}"
+
+      when: max_bytes is defined
+
+    - name: Pool updation successful
+      debug: msg="Pool {{ current_pool_name }} successfully updated"
+
+
+

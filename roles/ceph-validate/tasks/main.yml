@@ -1,7 +1,4 @@
 ---
-- name: include check_system.yml
-  include_tasks: check_system.yml
-
 - name: validate repository variables in non-containerized scenario
   when: not containerized_deployment | bool
   block:
@@ -56,38 +53,45 @@
     - radosgw_address_block == 'subnet'
     - radosgw_interface == 'interface'
 
-- name: validate osd nodes
-  when: osd_group_name in group_names
-  block:
-    - name: validate lvm osd scenario
-      fail:
-        msg: 'devices or lvm_volumes must be defined for lvm osd scenario'
-      when:
-        - not osd_auto_discovery | default(false) | bool
-        - devices is undefined
-        - lvm_volumes is undefined
+#- name: validate osd nodes
+#  when: osd_group_name in group_names
+#  block:
+#    - name: validate lvm osd scenario
+#      fail:
+#        msg: 'devices or lvm_volumes must be defined for lvm osd scenario'
+#      when:
+#        - not osd_auto_discovery | default(false) | bool
+#        - devices is undefined
+#        - lvm_volumes is undefined
+#
+#    - name: validate filestore lvm osd scenario
+#      fail:
+#        msg: 'data and journal keys must be defined in lvm_volumes'
+#      when:
+#        - osd_objectstore == 'filestore'
+#        - not osd_auto_discovery | default(false) | bool
+#        - lvm_volumes is defined
+#        - lvm_volumes | length > 0
+#        - item.data is undefined or item.journal is undefined
+#      with_items: '{{ lvm_volumes }}'
+#
+#    - name: validate bluestore lvm osd scenario
+#      fail:
+#        msg: 'data key must be defined in lvm_volumes'
+#      when:
+#        - osd_objectstore == 'bluestore'
+#        - not osd_auto_discovery | default(false) | bool
+#        - lvm_volumes is defined
+#        - lvm_volumes | length > 0
+#        - item.data is undefined
+#      with_items: '{{ lvm_volumes }}'
 
-    - name: validate filestore lvm osd scenario
-      fail:
-        msg: 'data and journal keys must be defined in lvm_volumes'
-      when:
-        - osd_objectstore == 'filestore'
-        - not osd_auto_discovery | default(false) | bool
-        - lvm_volumes is defined
-        - lvm_volumes | length > 0
-        - item.data is undefined or item.journal is undefined
-      with_items: '{{ lvm_volumes }}'
-
-    - name: validate bluestore lvm osd scenario
-      fail:
-        msg: 'data key must be defined in lvm_volumes'
-      when:
-        - osd_objectstore == 'bluestore'
-        - not osd_auto_discovery | default(false) | bool
-        - lvm_volumes is defined
-        - lvm_volumes | length > 0
-        - item.data is undefined
-      with_items: '{{ lvm_volumes }}'
+- name: warning deprecation for fqdn configuration
+  fail:
+    msg: "fqdn configuration is not supported anymore. Use 'use_fqdn_yes_i_am_sure: true' if you really want to use it. See release notes for more details"
+  when:
+    - mon_use_fqdn | bool or mds_use_fqdn | bool
+    - not use_fqdn_yes_i_am_sure | bool
 
 - name: debian based systems tasks
   when: ansible_os_family == 'Debian'
@@ -96,32 +100,15 @@
       fail:
         msg: "'local' installation scenario not supported on Debian systems"
       when: ceph_origin == 'local'
-
-    - name: fail if rhcs repository is enabled on debian
+    - name: verify that ceph_rhcs_cdn_debian_repo url is valid for red hat storage
       fail:
-        msg: "RHCS isn't supported anymore on Debian distribution"
+        msg: "ceph_rhcs_cdn_debian_repo url is invalid, please set your customername:customerpasswd"
       when:
         - ceph_origin == 'repository'
         - ceph_repository == 'rhcs'
-
-# SUSE/openSUSE Leap only supports the following:
-# - ceph_origin == 'distro'
-# - ceph_origin == 'repository' and ceph_repository == 'obs'
-- name: SUSE/openSUSE Leap based system tasks
-  when: ansible_os_family == 'Suse'
-  block:
-    - name: Check ceph_origin definition on SUSE/openSUSE Leap
-      fail:
-        msg: "Unsupported installation method origin:{{ ceph_origin }}"
-      when: ceph_origin not in ['distro', 'repository']
-
-    - name: Check ceph_repository definition on SUSE/openSUSE Leap
-      fail:
-        msg: "Unsupported installation method origin:{{ ceph_origin }} repo:{{ ceph_repository }}'
-                  only valid combination is ceph_origin == 'repository' and ceph_repository == 'obs'"
-      when:
-        - ceph_origin == 'repository'
-        - ceph_repository != 'obs'
+        - ceph_repository_type == 'cdn'
+        - ceph_rhcs_cdn_debian_repo == 'https://customername:customerpasswd@rhcs.download.redhat.com'
+        - ceph_repository not in ['rhcs', 'dev', 'obs']
 
 - name: validate ntp daemon type
   fail:
@@ -146,6 +133,9 @@
     - journal_size|int < 5120
     - osd_objectstore == 'filestore'
     - osd_group_name in group_names
+
+- name: include check_system.yml
+  include_tasks: check_system.yml
 
 - name: include check_devices.yml
   include_tasks: check_devices.yml
@@ -177,12 +167,6 @@
     - radosgw_interface != "dummy"
     - radosgw_address == "x.x.x.x"
     - radosgw_address_block == "subnet"
-
-- name: include check_rgw_pools.yml
-  include_tasks: check_rgw_pools.yml
-  when:
-    - inventory_hostname in groups.get(rgw_group_name, [])
-    - rgw_create_pools is defined
 
 - name: include check_rgw_multisite.yml
   include_tasks: check_rgw_multisite.yml
@@ -221,13 +205,6 @@
       fail:
         msg: "you must add at least one node in the [grafana-server] hosts group"
       when: groups[grafana_server_group_name] | length < 1
-
-    - name: fail when dashboard_admin_password and/or grafana_admin_password are not set
-      fail:
-        msg: "you must set dashboard_admin_password and grafana_admin_password."
-      when:
-        - dashboard_admin_password is undefined
-          or grafana_admin_password is undefined
   when: dashboard_enabled | bool
 
 - name: validate container registry credentials
@@ -237,25 +214,3 @@
     - ceph_docker_registry_auth | bool
     - (ceph_docker_registry_username is not defined or ceph_docker_registry_password is not defined) or
       (ceph_docker_registry_username | length == 0 or ceph_docker_registry_password | length == 0)
-
-- name: validate openstack_keys key format
-  fail:
-    msg: '{{ item.name }} key format invalid'
-  with_items: '{{ openstack_keys }}'
-  when:
-    - osd_group_name in group_names
-    - openstack_keys is defined
-    - openstack_keys | length > 0
-    - item.key is defined
-    - item.key is not match("^[a-zA-Z0-9+/]{38}==$")
-
-- name: validate clients keys key format
-  fail:
-    msg: '{{ item.name }} key format invalid'
-  with_items: '{{ keys }}'
-  when:
-    - client_group_name in group_names
-    - keys is defined
-    - keys | length > 0
-    - item.key is defined
-    - item.key is not match("^[a-zA-Z0-9+/]{38}==$")

@@ -1,0 +1,38 @@
+---
+# This playbook is used to delete an existing rbd image on a pool.
+# We will execute this from MON.
+# Ensure that all monitors are present in the mons
+
+- hosts: mons[0]
+  gather_facts: false
+  become: true
+  tasks:
+    - name: Check for watchers before deleting the image
+      command: "rbd status {{ pool_name }}/{{ rbd_image_name }}"
+      register: image_status
+
+    - block:
+      - name: Delete image
+        command: "rbd rm {{ pool_name }}/{{ rbd_image_name }}"
+        register: result
+        until: result is succeeded
+        run_once: true
+
+      when: image_status.stdout.find('none') != -1
+
+    - name: Give fatal error if image can't be deleted
+      fail:
+        msg: "rbd image can't be deleted {{ rbd_image_name }}"
+      when: image_status.stdout.find('none') == -1
+
+    - name: check if there are no rbd images on the pool
+      command: "rbd ls {{ pool_name }}"
+      register: lsrbd
+
+    - name: Remove rbd application from pool
+      command: "ceph osd pool application disable {{ pool_name }} rbd --yes-i-really-mean-it"
+      when: lsrbd.stdout == ""
+
+    - name: Image deleted successfully
+      debug: msg="rbd image {{ rbd_image_name }} successfully deleted"
+

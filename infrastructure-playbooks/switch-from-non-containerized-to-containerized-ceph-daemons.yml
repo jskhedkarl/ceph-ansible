@@ -38,24 +38,17 @@
 
   become: true
 
-  vars:
-    delegate_facts_host: True
-
   tasks:
-    - import_role:
-        name: ceph-defaults
-
     - name: gather and delegate facts
       setup:
       delegate_to: "{{ item }}"
       delegate_facts: True
-      with_items: "{{ groups['all'] | difference(groups.get(client_group_name, [])) }}"
-      run_once: true
-      when: delegate_facts_host | bool
-      tags: always
+      with_items: "{{ groups['all'] }}"
 
 - name: switching from non-containerized to containerized ceph mon
   vars:
+    health_mon_check_retries: 5
+    health_mon_check_delay: 15
     containerized_deployment: true
     switch_to_containers: True
     mon_group_name:       mons
@@ -195,6 +188,8 @@
 - name: switching from non-containerized to containerized ceph osd
 
   vars:
+    health_osd_check_retries: 5
+    health_osd_check_delay: 15
     containerized_deployment: true
     osd_group_name: osds
 
@@ -359,7 +354,7 @@
         name: ceph-container-common
 
     - import_role:
-         name: ceph-mds
+        name: ceph-mds
 
 
 - name: switching from non-containerized to containerized ceph rgw

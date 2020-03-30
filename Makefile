@@ -18,8 +18,6 @@ NAME = ceph-ansible
 #  A "git describe" value of "v2.2.0" creates an NVR
 #  "ceph-ansible-2.2.0-1.el8"
 
-DIST ?= "el8"
-MOCK_CONFIG ?= "epel-8-x86_64"
 TAG := $(shell git describe --tags --abbrev=0 --match 'v*')
 VERSION := $(shell echo $(TAG) | sed 's/^v//')
 COMMIT := $(shell git rev-parse HEAD)
@@ -30,11 +28,6 @@ RELEASE := $(shell git describe --tags --match 'v*' \
              | sed 's/-/./')
 ifeq ($(VERSION),$(RELEASE))
   RELEASE = 1
-endif
-ifneq (,$(findstring alpha,$(VERSION)))
-    ALPHA := $(shell echo $(VERSION) | sed 's/.*alpha/alpha/')
-    RELEASE := 0.$(ALPHA).$(RELEASE)
-    VERSION := $(subst $(ALPHA),,$(VERSION))
 endif
 ifneq (,$(findstring beta,$(VERSION)))
     BETA := $(shell echo $(VERSION) | sed 's/.*beta/beta/')
@@ -53,7 +46,7 @@ ifneq (,$(shell echo $(VERSION) | grep [a-zA-Z]))
     $(error cannot translate Git tag version $(VERSION) to an RPM NVR)
 endif
 
-NVR := $(NAME)-$(VERSION)-$(RELEASE).$(DIST)
+NVR := $(NAME)-$(VERSION)-$(RELEASE).el8
 
 all: srpm
 
@@ -84,12 +77,12 @@ srpm: dist spec
 	  --define "_topdir ." \
 	  --define "_sourcedir ." \
 	  --define "_srcrpmdir ." \
-	  --define "dist .$(DIST)"
+	  --define "dist .el8"
 
 rpm: dist srpm
-	mock -r $(MOCK_CONFIG) rebuild $(NVR).src.rpm \
+	mock -r epel-7-x86_64 rebuild $(NVR).src.rpm \
 	  --resultdir=. \
-	  --define "dist .$(DIST)"
+	  --define "dist .el8"
 
 tag:
 	$(eval BRANCH := $(shell git rev-parse --abbrev-ref HEAD))

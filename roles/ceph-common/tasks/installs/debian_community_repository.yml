@@ -13,8 +13,22 @@
   register: result
   until: result is succeeded
 
+#- name: configure debian ceph stable community repository
+#  apt_repository:
+#    repo: "deb {{ ceph_stable_repo }} {{ ceph_stable_distro_source | default(ansible_distribution_release) }} main"
+#    state: present
+#    update_cache: yes
+
+- name: configure debian ceph stable community repository
+  apt_repository:
+    repo: "deb {{ ceph_stable_repo }} xenial main"
+    state: present
+    update_cache: yes
+  when: ansible_distribution_release == "stretch"
+
 - name: configure debian ceph stable community repository
   apt_repository:
     repo: "deb {{ ceph_stable_repo }} {{ ceph_stable_distro_source | default(ansible_distribution_release) }} main"
     state: present
     update_cache: yes
+  when: ansible_distribution_release != "stretch"

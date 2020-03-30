@@ -95,7 +95,7 @@
       state: directory
       owner: "ceph"
       group: "ceph"
-      mode: "{{ ceph_directories_mode }}"
+      mode: "{{ ceph_directories_mode | default('0755') }}"
 
   - name: "generate ceph configuration file: {{ cluster }}.conf"
     action: config_template
@@ -122,7 +122,7 @@
     file:
       path: "{{ fetch_directory }}/{{ fsid }}/etc/ceph"
       state: directory
-      mode: "{{ ceph_directories_mode }}"
+      mode: "{{ ceph_directories_mode | default('0755') }}"
     delegate_to: localhost
     when: ceph_conf_local | bool
 
@@ -137,7 +137,7 @@
       config_overrides: "{{ ceph_conf_overrides }}"
       config_type: ini
     when:
-      - inventory_hostname in groups.get(mon_group_name, [])
+      - inventory_hostname in groups[mon_group_name]
       - ceph_conf_local | bool
 
 - name: config file operations for containerized scenarios

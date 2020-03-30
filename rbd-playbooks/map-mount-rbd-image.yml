@@ -1,0 +1,75 @@
+---
+- hosts: clients
+  serial: 1
+  become: yes
+  tasks:
+    - name: Map rbd image
+      shell: "rbd map {{ rbd_image_name }} --pool {{ pool_name }} --name client.admin -m {{ mon_ip }} -k /etc/ceph/ceph.client.admin.keyring"
+      register: result
+      failed_when: result.rc != 0
+
+    - debug:
+        var: result
+
+    - block:
+      - name: Get the mapped image
+        shell: "rbd showmapped | grep -w {{ rbd_image_name }} | awk '{print $NF}'"
+        register: out
+
+      - name: Checking if disk is already formatted
+        shell: "blkid | grep -w {{ out.stdout }} | awk '{print $NF}'"
+        register: format_status
+
+      - name: Unmap rbd image if image already formatted
+        shell: "rbd unmap {{ rbd_image_name }} --pool {{ pool_name }}"
+        when: '"ext4" in format_status.stdout' or '"xfs" in format_status.stdout'
+
+      - name: Give fatal error if image already formatted
+        fail:
+          msg: "The image {{ rbd_image_name }} is already in use."
+        when: '"ext4" in format_status.stdout'
+
+      - name: Formatting the disk
+        command: "mkfs.ext4 {{ result.stdout }}"
+        when: '"ext4" not in format_status.stdout'
+
+      - name: Wait few seconds for formatting the disk
+        pause: seconds=10
+
+      - name: Make directory
+        file:
+          path: "/mnt/ceph/{{ rbd_image_name }}"
+          state: directory
+
+      - name: Mount the disk
+        command: "mount {{ result.stdout }} /mnt/ceph/{{ rbd_image_name }}"
+
+      - name: Wait few seconds for mounting the disk
+        pause: seconds=10
+
+      - name: Delete local file
+        file:
+          dest: "{{ mountpoints_file }}"
+          state: absent
+        delegate_to: localhost
+        run_once: true
+
+      - name: Create a local file
+        file:
+          dest: "{{ mountpoints_file }}"
+          state: touch
+        delegate_to: localhost
+
+      - name: Write to a local file
+        lineinfile:
+          dest: "{{ mountpoints_file }}"
+          line: "{{ inventory_hostname }}:/mnt/ceph/{{ rbd_image_name }}"
+          insertafter: EOF
+        delegate_to: localhost
+
+      - debug:
+          msg: rbd disks formatted successfully
+
+      when: result.rc == 0 and result.stdout_lines != ""
+
+

@@ -1,0 +1,63 @@
+---
+- hosts: mdss
+  vars:
+    mds_group_name: mdss
+  gather_facts: True
+  become: true
+
+  tasks:
+  - name: check if ceph filesystem already exists
+    command: "ceph fs get {{ cephfs_name }}"
+    delegate_to: "{{ groups['mons'][0] }}"
+    register: check_existing_cephfs
+    failed_when: false
+
+  - name: Exit playbook if fs does not exists
+    meta: end_play
+    when: check_existing_cephfs.rc != 0
+
+  - name: stop ceph mdss with systemd
+    service:
+      name: ceph-mds@{{ ansible_hostname }}
+      state: stopped
+      enabled: no
+    failed_when: false
+
+
+- hosts: mons[0]
+  gather_facts: False
+  become: true
+  tasks:
+  - name: check if ceph filesystem already exists
+    command: "ceph fs get {{ cephfs_name }}"
+    register: check_existing_cephfs
+    failed_when: false
+
+  - name: Exit playbook if fs does not exists
+    meta: end_play
+    when: check_existing_cephfs.rc != 0
+
+  - name: Stop ceph fs
+    command: "ceph fs fail {{ cephfs_name }}"
+
+  - name: Remove ceph fs
+    command: "ceph fs rm {{ cephfs_name }} --yes-i-really-mean-it"
+
+  - name: Remove data from metadata pool
+    command: "rados purge {{ cephfs_metadata_pool }} --yes-i-really-really-mean-it"
+
+  - name: Remove data from data pool
+    shell: "rados purge {{ item }} --yes-i-really-really-mean-it"
+    with_items:
+      - "{{ cephfs_data_pool_list }}"
+
+  - name: Disable cephfs application from metadata pool
+    command: "ceph osd pool application disable {{ cephfs_metadata_pool }} cephfs --yes-i-really-mean-it"
+
+  - name: Disable cephfs application from data pools
+    command: "ceph osd pool application disable {{ item }} cephfs --yes-i-really-mean-it"
+    with_items:
+      - "{{ cephfs_data_pool_list }}"
+
+  - name: Mds purge Successfull
+    debug: msg="Ceph fs mds purged successfully"

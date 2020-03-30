@@ -1,0 +1,75 @@
+---
+# This playbook is used to create pool on osds to
+# existing cluster. It can run from any Machine. Even if fetch
+# directory not present it will be created.
+# We will execute this from MON.
+# Ensure that all monitors are present in the mons
+# group in your inventory so that the ceph configuration file
+# is created correctly for the new OSD(s).
+#
+- hosts: mons
+  gather_facts: false
+  vars:
+    delegate_facts_host: true
+
+- hosts: mons[0]
+  gather_facts: false
+  become: true
+  tasks:
+    - name: Set flag
+      set_fact:
+        pool_present: False
+
+    - name: Get list of pools
+      shell: "ceph osd lspools | awk '{print $2}'"
+      register: pool_list
+
+    - name: Diplay pool list
+      debug: msg="{{pool_list.stdout}}"
+
+    - name: Check if pool already present
+      set_fact:
+        pool_present: True
+      with_items:
+        - "{{ pool_list.stdout_lines }}"
+      when: pool_name == item
+
+    - block:
+      - block:
+        - name: create replicated pool
+          command: "ceph osd pool create {{ pool_name }} {{ pg_num }} {{ pool_resilience }}"
+          register: pool_status
+          until: pool_status is succeeded
+          run_once: true
+
+        - name: Set replication size
+          command: "ceph osd pool set {{ pool_name }} size {{ num_replicas }}"
+          register: replication_status
+
+        when: pool_resilience == "replicated"
+
+      - block:
+        - include: create-erasure-code-profile.yml
+
+        - name: create erasure coded pool
+          command: "ceph osd pool create {{ pool_name }} {{ pg_num }} {{ pool_resilience }} {{ erasure_code_profile }}"
+          register: pool_status
+          until: pool_status is succeeded
+          run_once: true
+
+        when: pool_resilience == "erasure"
+
+      - name: Set quota size
+        command: "ceph osd pool set-quota {{ pool_name }} max_bytes {{ max_bytes }}"
+        register: quota_status
+
+      when: not pool_present
+
+    - name: Give fatal error if pool name already in use
+      fail:
+        msg: "The pool name {{ pool_name }} is already in use"
+      when: pool_present
+
+    - name: Pool creation successful
+      debug: msg="Pool {{ pool_name }} successfully created"
+

@@ -1,0 +1,62 @@
+---
+- name: Change the file mode of keyring on mon
+  file:
+    path: "{{ item.name }}"
+    mode: '0444'
+  delegate_to: "{{ groups['mons'][0] }}"
+  with_items:
+    - { name: "/var/lib/ceph/bootstrap-mds/{{ cluster }}.keyring", copy_key: true }
+    - { name: "/etc/ceph/{{ cluster }}.client.admin.keyring", copy_key: "{{ copy_admin_key }}" }
+  when:
+    - cephx
+    - item.copy_key|bool
+
+- name: Copy keyring file to local
+  fetch:
+    src: "{{ item.name }}"
+    dest: "/tmp/{{ item.name }}"
+    flat: yes
+  delegate_to: "{{ groups['mons'][0] }}"
+  with_items:
+    - { name: "/var/lib/ceph/bootstrap-mds/{{ cluster }}.keyring", copy_key: true }
+    - { name: "/etc/ceph/{{ cluster }}.client.admin.keyring", copy_key: "{{ copy_admin_key }}" }
+  when:
+    - cephx
+    - item.copy_key|bool
+
+- file:
+    path: "{{ item.name }}"
+    state: directory
+  with_items:
+    - { name: "/var/lib/ceph/bootstrap-mds/", copy_key: true }
+    - { name: "/etc/ceph/", copy_key: "{{ copy_admin_key }}" }
+  when:
+    - cephx
+    - item.copy_key|bool
+
+- name: Copy keyring file to mdss
+  copy:
+    src: "/tmp/{{ item.name }}"
+    dest: "{{ item.name }}"
+    owner: ceph
+    group: ceph
+    force: yes
+  with_items:
+    - { name: "/var/lib/ceph/bootstrap-mds/{{ cluster }}.keyring", copy_key: true }
+    - { name: "/etc/ceph/{{ cluster }}.client.admin.keyring", copy_key: "{{ copy_admin_key }}" }
+  when:
+    - cephx
+    - item.copy_key|bool
+
+- name: Delete the keyring from local
+  file:
+    path: "/tmp/{{ item.name }}"
+    state: absent
+  delegate_to: localhost
+  with_items:
+    - { name: "/var/lib/ceph/bootstrap-mds/{{ cluster }}.keyring", copy_key: true }
+    - { name: "/etc/ceph/{{ cluster }}.client.admin.keyring", copy_key: "{{ copy_admin_key }}" }
+  when:
+    - cephx
+    - item.copy_key|bool
+

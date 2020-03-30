@@ -1,0 +1,12 @@
+---
+- include: unmount-rbd-image.yml
+  
+- hosts: clients
+  gather_facts: false
+  become: true
+  tasks:
+    - name: Unmap rbd image
+      shell: "rbd unmap {{ rbd_image_name }} --pool {{ pool_name }}"
+      register: result
+
+

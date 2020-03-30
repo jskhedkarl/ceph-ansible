@@ -1,0 +1,37 @@
+---
+# This playbook is used to delete an existing pool on osds to
+# existing cluster. It can run from any Machine. Even if fetch
+# directory not present it will be created.
+# We will execute this from MON.
+# Ensure that all monitors are present in the mons
+# group in your inventory so that the ceph configuration file
+#  is created correctly for the new OSD(s).
+ 
+- hosts: mons[0]
+  gather_facts: false
+  become: true
+  tasks:
+   # - name: Set allow delete pool attribute to true
+   #   command: "ceph tell mon.\\* injectargs '--mon-allow-pool-delete=true'"
+
+    - name: Check for images before deleting the pool
+      command: "rbd ls {{ pool_name }}"
+      register: pool_status
+
+    - block:
+      - name: Delete Pool
+        command: "ceph osd pool rm {{ pool_name }} {{ pool_name }} --yes-i-really-really-mean-it"
+        register: result
+        until: result is succeeded
+        run_once: true
+
+      when: pool_status.stdout == ""
+
+    - name: Give fatal error if pool can't be deleted
+      fail:
+          msg: "rbd pool can't be deleted {{ pool_name }}"
+      when: pool_status.stdout != ""
+
+    - name: Pool successfully deleted
+      debug: msg="Pool {{ pool_name }} successfully deleted"
+

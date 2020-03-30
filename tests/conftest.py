@@ -64,6 +64,8 @@ def setup(host):
     address = host.interface(public_interface).addresses[0]
 
     if docker:
+        container_binary = "docker"
+    if docker and str_to_bool(os.environ.get('IS_PODMAN', False)):  # noqa E501
         container_binary = "podman"
 
     data = dict(
@@ -101,16 +103,12 @@ def node(host, request):
     rolling_update = os.environ.get("ROLLING_UPDATE", "False")
     group_names = ansible_vars["group_names"]
     docker = ansible_vars.get("docker")
-    dashboard = ansible_vars.get("dashboard_enabled", True)
     radosgw_num_instances = ansible_vars.get("radosgw_num_instances", 1)
     ceph_release_num = {
         'jewel': 10,
         'kraken': 11,
         'luminous': 12,
         'mimic': 13,
-        'nautilus': 14,
-        'octopus': 15,
-        'pacific': 16,
         'dev': 99
     }
 
@@ -135,9 +133,6 @@ def node(host, request):
         pytest.skip(
             "Not a valid test for non-containerized deployments or atomic hosts")  # noqa E501
 
-    if request.node.get_closest_marker("dashboard") and not dashboard:
-        pytest.skip(
-            "Not a valid test with dashboard disabled")
 
     data = dict(
         vars=ansible_vars,
@@ -169,8 +164,6 @@ def pytest_collection_modifyitems(session, config, items):
             item.add_marker(pytest.mark.nfss)
         elif "iscsi" in test_path:
             item.add_marker(pytest.mark.iscsigws)
-        elif "grafana" in test_path:
-            item.add_marker(pytest.mark.grafanas)
         else:
             item.add_marker(pytest.mark.all)
 

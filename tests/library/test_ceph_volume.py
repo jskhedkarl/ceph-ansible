@@ -55,6 +55,7 @@ class TestCephVolumeModule(object):
         fake_binary = "ceph-volume"
         fake_container_image = "docker.io/ceph/daemon:latest-luminous"
         expected_command_list = ['docker', 'run', '--rm', '--privileged', '--net=host', '--ipc=host',  # noqa E501
+                                 '--ulimit', 'nofile=1024:4096',
                                  '-v', '/run/lock/lvm:/run/lock/lvm:z',
                                  '-v', '/var/run/udev/:/var/run/udev/:z',
                                  '-v', '/dev:/dev', '-v', '/etc/ceph:/etc/ceph:z',  # noqa E501
@@ -71,6 +72,7 @@ class TestCephVolumeModule(object):
         fake_module.params = {'data': '/dev/sda'}
         fake_container_image = "docker.io/ceph/daemon:latest-luminous"
         expected_command_list = ['docker', 'run', '--rm', '--privileged', '--net=host', '--ipc=host',  # noqa E501
+                                 '--ulimit', 'nofile=1024:4096',
                                  '-v', '/run/lock/lvm:/run/lock/lvm:z',
                                  '-v', '/var/run/udev/:/var/run/udev/:z',
                                  '-v', '/dev:/dev', '-v', '/etc/ceph:/etc/ceph:z',  # noqa E501
@@ -139,6 +141,7 @@ class TestCephVolumeModule(object):
         fake_module.params = {'cluster': 'ceph', 'data': '/dev/sda'}
         fake_container_image = "docker.io/ceph/daemon:latest-luminous"
         expected_command_list = ['docker', 'run', '--rm', '--privileged', '--net=host', '--ipc=host',  # noqa E501
+                                 '--ulimit', 'nofile=1024:4096',
                                  '-v', '/run/lock/lvm:/run/lock/lvm:z',
                                  '-v', '/var/run/udev/:/var/run/udev/:z',
                                  '-v', '/dev:/dev', '-v', '/etc/ceph:/etc/ceph:z',  # noqa E501
@@ -171,6 +174,7 @@ class TestCephVolumeModule(object):
         fake_module = MagicMock()
         fake_container_image = "docker.io/ceph/daemon:latest-luminous"
         expected_command_list = ['docker', 'run', '--rm', '--privileged', '--net=host', '--ipc=host',  # noqa E501
+                                 '--ulimit', 'nofile=1024:4096',
                                  '-v', '/run/lock/lvm:/run/lock/lvm:z',
                                  '-v', '/var/run/udev/:/var/run/udev/:z',
                                  '-v', '/dev:/dev', '-v', '/etc/ceph:/etc/ceph:z',  # noqa E501
@@ -194,6 +198,7 @@ class TestCephVolumeModule(object):
         fake_action = "create"
         fake_container_image = "docker.io/ceph/daemon:latest-luminous"
         expected_command_list = ['docker', 'run', '--rm', '--privileged', '--net=host', '--ipc=host',  # noqa E501
+                                 '--ulimit', 'nofile=1024:4096',
                                  '-v', '/run/lock/lvm:/run/lock/lvm:z',
                                  '-v', '/var/run/udev/:/var/run/udev/:z',
                                  '-v', '/dev:/dev', '-v', '/etc/ceph:/etc/ceph:z',  # noqa E501
@@ -242,6 +247,7 @@ class TestCephVolumeModule(object):
         fake_action = "prepare"
         fake_container_image = "docker.io/ceph/daemon:latest-luminous"
         expected_command_list = ['docker', 'run', '--rm', '--privileged', '--net=host', '--ipc=host',  # noqa E501
+                                 '--ulimit', 'nofile=1024:4096',
                                  '-v', '/run/lock/lvm:/run/lock/lvm:z',
                                  '-v', '/var/run/udev/:/var/run/udev/:z',
                                  '-v', '/dev:/dev', '-v', '/etc/ceph:/etc/ceph:z',  # noqa E501
@@ -291,6 +297,7 @@ class TestCephVolumeModule(object):
 
         fake_container_image = "docker.io/ceph/daemon:latest-luminous"
         expected_command_list = ['docker', 'run', '--rm', '--privileged', '--net=host', '--ipc=host',  # noqa E501
+                                 '--ulimit', 'nofile=1024:4096',
                                  '-v', '/run/lock/lvm:/run/lock/lvm:z',
                                  '-v', '/var/run/udev/:/var/run/udev/:z',
                                  '-v', '/dev:/dev', '-v', '/etc/ceph:/etc/ceph:z',  # noqa E501
@@ -332,106 +339,6 @@ class TestCephVolumeModule(object):
                                  '--yes',
                                  '--journal-size',
                                  '100',
-                                 '/dev/sda',
-                                 '/dev/sdb']
-        result = ceph_volume.batch(
-            fake_module, fake_container_image)
-        assert result == expected_command_list
-
-    def test_batch_filestore_with_dedicated_journal(self):
-        fake_module = MagicMock()
-        fake_module.params = {'objectstore': 'filestore',
-                              'journal_size': '100',
-                              'cluster': 'ceph',
-                              'batch_devices': ["/dev/sda", "/dev/sdb"],
-                              'journal_devices': ["/dev/sdc", "/dev/sdd"]}
-
-        fake_container_image = None
-        expected_command_list = ['ceph-volume',
-                                 '--cluster',
-                                 'ceph',
-                                 'lvm',
-                                 'batch',
-                                 '--filestore',
-                                 '--yes',
-                                 '--journal-size',
-                                 '100',
-                                 '/dev/sda',
-                                 '/dev/sdb',
-                                 '--journal-devices',
-                                 '/dev/sdc',
-                                 '/dev/sdd']
-        result = ceph_volume.batch(
-            fake_module, fake_container_image)
-        assert result == expected_command_list
-
-    def test_batch_bluestore_with_dedicated_db(self):
-        fake_module = MagicMock()
-        fake_module.params = {'objectstore': 'bluestore',
-                              'block_db_size': '-1',
-                              'cluster': 'ceph',
-                              'batch_devices': ["/dev/sda", "/dev/sdb"],
-                              'block_db_devices': ["/dev/sdc", "/dev/sdd"]}
-
-        fake_container_image = None
-        expected_command_list = ['ceph-volume',
-                                 '--cluster',
-                                 'ceph',
-                                 'lvm',
-                                 'batch',
-                                 '--bluestore',
-                                 '--yes',
-                                 '/dev/sda',
-                                 '/dev/sdb',
-                                 '--db-devices',
-                                 '/dev/sdc',
-                                 '/dev/sdd']
-        result = ceph_volume.batch(
-            fake_module, fake_container_image)
-        assert result == expected_command_list
-
-    def test_batch_bluestore_with_dedicated_wal(self):
-        fake_module = MagicMock()
-        fake_module.params = {'objectstore': 'bluestore',
-                              'cluster': 'ceph',
-                              'block_db_size': '-1',
-                              'batch_devices': ["/dev/sda", "/dev/sdb"],
-                              'wal_devices': ["/dev/sdc", "/dev/sdd"]}
-
-        fake_container_image = None
-        expected_command_list = ['ceph-volume',
-                                 '--cluster',
-                                 'ceph',
-                                 'lvm',
-                                 'batch',
-                                 '--bluestore',
-                                 '--yes',
-                                 '/dev/sda',
-                                 '/dev/sdb',
-                                 '--wal-devices',
-                                 '/dev/sdc',
-                                 '/dev/sdd']
-        result = ceph_volume.batch(
-            fake_module, fake_container_image)
-        assert result == expected_command_list
-
-    def test_batch_bluestore_with_custom_db_size(self):
-        fake_module = MagicMock()
-        fake_module.params = {'objectstore': 'bluestore',
-                              'cluster': 'ceph',
-                              'block_db_size': '4096',
-                              'batch_devices': ["/dev/sda", "/dev/sdb"]}
-
-        fake_container_image = None
-        expected_command_list = ['ceph-volume',
-                                 '--cluster',
-                                 'ceph',
-                                 'lvm',
-                                 'batch',
-                                 '--bluestore',
-                                 '--yes',
-                                 '--block-db-size',
-                                 '4096',
                                  '/dev/sda',
                                  '/dev/sdb']
         result = ceph_volume.batch(

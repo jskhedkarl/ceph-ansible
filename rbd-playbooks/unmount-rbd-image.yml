@@ -1,0 +1,15 @@
+---
+- hosts: clients
+  gather_facts: false
+  become: true
+  tasks:
+    - name: Check if image is mounted
+      shell: "lsblk  --noheadings --raw -o NAME,MOUNTPOINT | awk '$2~/{{ rbd_image_name }}.*/ && $2!=\"\"' | awk '{print $2}'"
+      register: mountpoint
+
+    - debug: var=mountpoint
+
+    - name: Unmount if image is mounted
+      shell: "umount {{ mountpoint.stdout }}"
+      when: mountpoint.stdout != ""
+

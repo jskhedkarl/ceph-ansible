@@ -1,9 +1,9 @@
 ---
-- name: include create_mds_filesystems.yml
-  include_tasks: create_mds_filesystems.yml
-  when:
-    - inventory_hostname == groups[mds_group_name] | first
-    - not rolling_update | bool
+#- name: include create_mds_filesystems.yml
+#  include_tasks: create_mds_filesystems.yml
+#  when:
+#    - inventory_hostname == groups[mds_group_name] | first
+#    - not rolling_update | bool
 
 - name: include common.yml
   include_tasks: common.yml

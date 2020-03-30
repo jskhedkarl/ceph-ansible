@@ -114,24 +114,6 @@ options:
             - Only applicable if action is 'batch'.
         required: false
         default: -1
-    journal_devices:
-        description:
-            - A list of devices for filestore journal to pass to the 'ceph-volume lvm batch' subcommand.
-            - Only applicable if action is 'batch'.
-            - Only applicable if objectstore is 'filestore'.
-        required: false
-    block_db_devices:
-        description:
-            - A list of devices for bluestore block db to pass to the 'ceph-volume lvm batch' subcommand.
-            - Only applicable if action is 'batch'.
-            - Only applicable if objectstore is 'bluestore'.
-        required: false
-    wal_devices:
-        description:
-            - A list of devices for bluestore block wal to pass to the 'ceph-volume lvm batch' subcommand.
-            - Only applicable if action is 'batch'.
-            - Only applicable if objectstore is 'bluestore'.
-        required: false
     report:
         description:
             - If provided the --report flag will be passed to 'ceph-volume lvm batch'.
@@ -207,6 +189,7 @@ def container_exec(binary, container_image):
     container_binary = os.getenv('CEPH_CONTAINER_BINARY')
     command_exec = [container_binary, 'run',
                     '--rm', '--privileged', '--net=host', '--ipc=host',
+                    '--ulimit', 'nofile=1024:4096',
                     '-v', '/run/lock/lvm:/run/lock/lvm:z',
                     '-v', '/var/run/udev/:/var/run/udev/:z',
                     '-v', '/dev:/dev', '-v', '/etc/ceph:/etc/ceph:z',
@@ -294,7 +277,6 @@ def batch(module, container_image):
     objectstore = module.params['objectstore']
     batch_devices = module.params.get('batch_devices', None)
     crush_device_class = module.params.get('crush_device_class', None)
-    journal_devices = module.params.get('journal_devices', None)
     journal_size = module.params.get('journal_size', None)
     block_db_size = module.params.get('block_db_size', None)
     block_db_devices = module.params.get('block_db_devices', None)
@@ -337,17 +319,11 @@ def batch(module, container_image):
 
     cmd.extend(batch_devices)
 
-    if journal_devices and objectstore == 'filestore':
-        cmd.append('--journal-devices')
-        cmd.extend(journal_devices)
-
     if block_db_devices and objectstore == 'bluestore':
-        cmd.append('--db-devices')
-        cmd.extend(block_db_devices)
+        cmd.extend(['--db-devices', ' '.join(block_db_devices)])
 
     if wal_devices and objectstore == 'bluestore':
-        cmd.append('--wal-devices')
-        cmd.extend(wal_devices)
+        cmd.extend(['--wal-devices', ' '.join(wal_devices)])
 
     return cmd
 
@@ -536,7 +512,6 @@ def run_module():
         batch_devices=dict(type='list', required=False, default=[]),
         osds_per_device=dict(type='int', required=False, default=1),
         journal_size=dict(type='str', required=False, default='5120'),
-        journal_devices=dict(type='list', required=False, default=[]),
         block_db_size=dict(type='str', required=False, default='-1'),
         block_db_devices=dict(type='list', required=False, default=[]),
         wal_devices=dict(type='list', required=False, default=[]),

@@ -1,0 +1,15 @@
+---
+- name: check and create ceph filesystem
+  delegate_to: "{{ groups[mon_group_name][0] }}"
+  block:
+    - include_tasks: create_fs.yml
+#      with_items:
+#        - "{{ cephfs_data_pool_list }}"
+
+- name: set max_mds
+  command: "{{ container_exec_cmd | default('') }} ceph --cluster {{ cluster }} fs set {{ cephfs_name }} max_mds {{ mds_max_mds }}"
+  changed_when: false
+  delegate_to: "{{ groups[mon_group_name][0] }}"
+  when: mds_max_mds > 1
+
+

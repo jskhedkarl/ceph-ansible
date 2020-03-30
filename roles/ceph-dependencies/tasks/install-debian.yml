@@ -1,0 +1,12 @@
+- name: Install ceph dependencies
+  apt:
+    name: "{{ ceph_packages }}"
+    update_cache: yes
+  when: ceph_packages | length > 0
+
+- name: Install ceph dependencies from URL
+  apt:
+    deb: "{{ item }}"
+    force: yes
+  with_items: "{{ ceph_packages_url }}"
+  when: ceph_packages_url | length > 0

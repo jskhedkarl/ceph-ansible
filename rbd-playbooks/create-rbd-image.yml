@@ -1,0 +1,27 @@
+---
+- hosts: mons[0]
+  gather_facts: false
+  become: true
+  tasks:
+    - name: RBD Initialisation
+      command: "rbd pool init {{ pool_name }}"
+      register: rbd_status
+      until: rbd_status is succeeded
+      run_once: true
+
+    - name: Create rbd image
+      command: "rbd create {{ rbd_image_name }} --pool {{ pool_name }} --size {{ rbd_image_size }} --image-feature layering"
+      register: rbd_image_status
+
+    - name: Get rbd image info
+      command: "rbd info {{ pool_name }}/{{ rbd_image_name }}"
+      register: rbd_image_info
+
+    - name: Display the rbd image info
+      debug:
+        var: rbd_image_info
+
+    - name: Image created successfully
+      debug: msg="rbd image {{ rbd_image_name }} created successfully"
+ 
+

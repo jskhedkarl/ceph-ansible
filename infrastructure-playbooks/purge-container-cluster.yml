@@ -193,25 +193,18 @@
   become: true
 
   tasks:
-    - import_role:
-        name: ceph-defaults
 
-    - import_role:
-        name: ceph-facts
-        tasks_from: set_radosgw_address
+  - name: disable ceph rgw service
+    service:
+      name: "ceph-radosgw@*"
+      state: stopped
+      enabled: no
+    ignore_errors: true
 
-    - name: disable ceph rgw service
-      service:
-        name: "ceph-radosgw@rgw.{{ ansible_hostname }}.{{ item.instance_name }}"
-        state: stopped
-        enabled: no
-      failed_when: false
-      with_items: "{{ rgw_instances }}"
-
-    - name: remove ceph rgw service
-      file:
-        path: /etc/systemd/system/ceph-radosgw@.service
-        state: absent
+  - name: remove ceph rgw service
+    file:
+      path: /etc/systemd/system/ceph-radosgw@.service
+      state: absent
 
 
 - name: purge ceph rbd-mirror cluster
@@ -258,7 +251,7 @@
 
   - name: get all the running osds
     shell: |
-      systemctl list-units | grep 'loaded[[:space:]]\+active' | grep -oE "ceph-osd@([0-9]+).service"
+      systemctl list-units | grep 'loaded[[:space:]]\+active' | grep -oE "ceph-osd@([0-9]{1,2}|[a-z]+).service"
     register: osd_units
     ignore_errors: true
 
@@ -273,6 +266,7 @@
     file:
       path: /var/lib/ceph/osd/
       state: absent
+    register: remove_osd_mountpoints
     ignore_errors: true
 
   - name: default lvm_volumes if not defined
@@ -384,30 +378,26 @@
   tasks:
     - import_role:
         name: ceph-defaults
+    - import_role:
+        name: ceph-facts
+        tasks_from: container_binary
 
-    - block:
-        - import_role:
-            name: ceph-facts
-            tasks_from: container_binary
+    - name: disable node_exporter service
+      service:
+        name: node_exporter
+        state: stopped
+        enabled: no
+      failed_when: false
 
-        - name: disable node_exporter service
-          service:
-            name: node_exporter
-            state: stopped
-            enabled: no
-          failed_when: false
+    - name: remove node_exporter service file
+      file:
+        name: /etc/systemd/system/node_exporter.service
+        state: absent
 
-        - name: remove node_exporter service file
-          file:
-            name: /etc/systemd/system/node_exporter.service
-            state: absent
-
-        - name: remove node-exporter image
-          command: "{{ container_binary }} rmi {{ node_exporter_container_image }}"
-          failed_when: false
-          tags:
-            - remove_img
-      when: dashboard_enabled | bool
+    - name: remove node-exporter image
+      command: "{{ container_binary }} rmi {{ node_exporter_container_image }}"
+      tags:
+        - remove_img
 
 - name: purge ceph-grafana
 
@@ -426,51 +416,48 @@
   tasks:
     - import_role:
         name: ceph-defaults
+    - import_role:
+        name: ceph-facts
+        tasks_from: container_binary
 
-    - block:
-        - import_role:
-            name: ceph-facts
-            tasks_from: container_binary
+    - name: stop services
+      service:
+        name: "{{ item }}"
+        state: stopped
+        enabled: no
+      with_items: "{{ grafana_services }}"
+      failed_when: false
 
-        - name: stop services
-          service:
-            name: "{{ item }}"
-            state: stopped
-            enabled: no
-          with_items: "{{ grafana_services }}"
-          failed_when: false
+    - name: remove service files
+      file:
+        name: "/etc/systemd/system/{{ item }}.service"
+        state: absent
+      with_items: "{{ grafana_services }}"
+      failed_when: false
 
-        - name: remove service files
-          file:
-            name: "/etc/systemd/system/{{ item }}.service"
-            state: absent
-          with_items: "{{ grafana_services }}"
-          failed_when: false
+    - name: remove ceph dashboard container images
+      command: "{{ container_binary }} rmi {{ item }}"
+      with_items:
+        - "{{ prometheus_container_image }}"
+        - "{{ grafana_container_image }}"
+        - "{{ alertmanager_container_image }}"
+      failed_when: false
+      tags:
+        - remove_img
 
-        - name: remove ceph dashboard container images
-          command: "{{ container_binary }} rmi {{ item }}"
-          with_items:
-            - "{{ prometheus_container_image }}"
-            - "{{ grafana_container_image }}"
-            - "{{ alertmanager_container_image }}"
-          failed_when: false
-          tags:
-            - remove_img
-
-        - name: remove data
-          file:
-            name: "{{ item }}"
-            state: absent
-          with_items:
-            - /etc/grafana/grafana.ini
-            - /etc/grafana/provisioning
-            - /var/lib/grafana
-            - /etc/alertmanager
-            - /var/lib/alertmanager
-            - /var/lib/prometheus
-            - /etc/prometheus
-          failed_when: false
-      when: dashboard_enabled | bool
+    - name: remove data
+      file:
+        name: "{{ item }}"
+        state: absent
+      with_items:
+        - /etc/grafana/grafana.ini
+        - /etc/grafana/provisioning
+        - /var/lib/grafana
+        - /etc/alertmanager
+        - /var/lib/alertmanager
+        - /var/lib/prometheus
+        - /etc/prometheus
+      failed_when: false
 
 - name: check container hosts
 
@@ -493,12 +480,6 @@
 
   - import_role:
       name: ceph-facts
-      tasks_from: container_binary
-
-  - name: remove stopped/exited containers
-    command: >
-      {{ container_binary }} container prune{% if container_binary == 'docker' %} -f{% endif %}
-    changed_when: false
 
   - name: show container list on all the nodes (should be empty)
     command: >

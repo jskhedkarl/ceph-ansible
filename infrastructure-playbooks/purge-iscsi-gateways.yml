@@ -22,6 +22,7 @@
 - name: stopping the gateways
   hosts:
     - iscsigws
+    - iscsi-gws # for backward compatibility only!
   become: yes
   vars:
     - igw_purge_type: "{{hostvars['localhost']['igw_purge_type']}}"
@@ -40,6 +41,7 @@
 - name: removing the gateway configuration
   hosts:
     - iscsigws
+    - iscsi-gws # for backward compatibility only!
   become: yes
   vars:
     - igw_purge_type: "{{ hostvars['localhost']['igw_purge_type'] }}"

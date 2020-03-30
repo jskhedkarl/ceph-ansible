@@ -32,20 +32,20 @@
       setup:
       when: not delegate_facts_host | bool
 
-    - import_role:
-        name: ceph-defaults
-
     - name: gather and delegate facts
       setup:
       delegate_to: "{{ item }}"
       delegate_facts: True
       with_items:
-        - "{{ groups[mon_group_name] }}"
-        - "{{ groups[osd_group_name] }}"
+        - "{{ groups['mons'] }}"
+        - "{{ groups['osds'] }}"
       run_once: True
       when: delegate_facts_host | bool
 
   tasks:
+    - import_role:
+        name: ceph-defaults
+
     - import_role:
         name: ceph-facts
 
@@ -65,16 +65,13 @@
       setup:
       when: not delegate_facts_host | bool
 
-    - import_role:
-        name: ceph-defaults
-
     - name: gather and delegate facts
       setup:
       delegate_to: "{{ item }}"
       delegate_facts: True
       with_items:
-        - "{{ groups[mon_group_name] }}"
-        - "{{ groups[osd_group_name] }}"
+        - "{{ groups['mons'] }}"
+        - "{{ groups['osds'] }}"
       run_once: True
       when: delegate_facts_host | bool
 
@@ -106,6 +103,9 @@
       changed_when: False
 
   tasks:
+    - import_role:
+        name: ceph-defaults
+
     - import_role:
         name: ceph-facts
     - import_role:

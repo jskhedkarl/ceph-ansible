@@ -1,0 +1,13 @@
+---
+- set_fact:
+    erasure_code_profile: "{{ pool_name }}_ec_profile"
+    km: "{{ km | default('2+1') }}"
+
+- set_fact:
+    k: "{{ km.split('+')[0] }}"
+    m: "{{ km.split('+')[1] }}"
+
+- name: Create erasure code profile
+  command: "ceph osd erasure-code-profile set {{ erasure_code_profile }} plugin={{ plugin | default('jerasure') }} technique={{ technique | default('reed_sol_van') }} k={{ k }} m={{ m }} crush-failure-domain={{ crush_failure_domain | default('host') }}"
+
+

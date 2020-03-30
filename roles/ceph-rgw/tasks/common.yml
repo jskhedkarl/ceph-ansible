@@ -5,7 +5,7 @@
     state: directory
     owner: "{{ ceph_uid if containerized_deployment else 'ceph' }}"
     group: "{{ ceph_uid if containerized_deployment else 'ceph' }}"
-    mode: "{{ ceph_directories_mode }}"
+    mode: "{{ ceph_directories_mode | default('0755') }}"
   with_items: "{{ rbd_client_admin_socket_path }}"
 
 - name: create rados gateway instance directories
@@ -14,7 +14,7 @@
     state: directory
     owner: "{{ ceph_uid if containerized_deployment else 'ceph' }}"
     group: "{{ ceph_uid if containerized_deployment else 'ceph' }}"
-    mode: "{{ ceph_directories_mode }}"
+    mode: "{{ ceph_directories_mode | default('0755') }}"
   with_items: "{{ rgw_instances }}"
   when: rgw_instances is defined
 
@@ -41,13 +41,3 @@
   when:
     - cephx | bool
     - item.item.copy_key | bool
-
-- name: copy SSL certificate & key data to certificate path
-  copy:
-    content: "{{ radosgw_frontend_ssl_certificate_data }}"
-    dest: "{{ radosgw_frontend_ssl_certificate }}"
-    owner: "{{ ceph_uid if containerized_deployment else 'ceph' }}"
-    group: "{{ ceph_uid if containerized_deployment else 'ceph' }}"
-    mode: 0440
-  when: radosgw_frontend_ssl_certificate | length > 0 and radosgw_frontend_ssl_certificate_data | length > 0
-  notify: restart ceph rgws

@@ -204,6 +204,27 @@
       when: inventory_hostname in groups[mgr_group_name] | default([])
             or groups[mgr_group_name] | default([]) | length == 0
 
+    - name: set osd flags
+      command: ceph --cluster {{ cluster }} osd set {{ item }}
+      with_items:
+        - noout
+        - norebalance
+      delegate_to: "{{ mon_host }}"
+      when:
+        - inventory_hostname == groups[mon_group_name][0]
+        - not containerized_deployment | bool
+
+    - name: set containerized osd flags
+      command: >
+        {{ container_binary }} exec ceph-mon-{{ hostvars[mon_host]['ansible_hostname'] }} ceph --cluster {{ cluster }} osd set {{ item }}
+      with_items:
+        - noout
+        - norebalance
+      delegate_to: "{{ mon_host }}"
+      when:
+        - inventory_hostname == groups[mon_group_name][0]
+        - containerized_deployment | bool
+
     - import_role:
         name: ceph-handler
     - import_role:
@@ -373,11 +394,6 @@
   serial: 1
   become: True
   tasks:
-    - import_role:
-        name: ceph-defaults
-    - import_role:
-        name: ceph-facts
-
     - name: get osd numbers - non container
       shell: "if [ -d /var/lib/ceph/osd ] ; then ls /var/lib/ceph/osd | sed 's/.*-//' ; fi"
       register: osd_ids
@@ -385,7 +401,7 @@
       when: not containerized_deployment | bool
 
     - name: get osd unit names - container
-      shell: systemctl list-units | grep -E "loaded * active" | grep -oE "ceph-osd@([0-9]+).service"
+      shell: systemctl list-units | grep -E "loaded * active" | grep -oE "ceph-osd@([a-z0-9]+).service"
       register: osd_names
       changed_when: false
       when: containerized_deployment | bool
@@ -415,6 +431,10 @@
       when: not containerized_deployment | bool
 
     - import_role:
+        name: ceph-defaults
+    - import_role:
+        name: ceph-facts
+    - import_role:
         name: ceph-handler
     - import_role:
         name: ceph-common
@@ -426,6 +446,12 @@
         name: ceph-config
     - import_role:
         name: ceph-osd
+
+    - name: get osd numbers
+      shell: "if [ -d /var/lib/ceph/osd ] ; then ls /var/lib/ceph/osd | sed 's/.*-//' ; fi"
+      register: osd_ids
+      changed_when: false
+      when: not containerized_deployment | bool
 
     - name: start ceph osd
       systemd:
@@ -483,6 +509,7 @@
 - name: complete osd upgrade
   hosts: "{{ mon_group_name|default('mons') }}[0]"
   become: True
+
   tasks:
     - import_role:
         name: ceph-defaults
@@ -499,6 +526,23 @@
       with_items:
         - noout
         - nodeep-scrub
+
+    - name: get osd versions
+      command: "{{ container_exec_cmd_update_osd|default('') }} ceph --cluster {{ cluster }} versions"
+      register: ceph_versions
+
+    - name: set_fact ceph_versions_osd
+      set_fact:
+        ceph_versions_osd: "{{ (ceph_versions.stdout|from_json).osd }}"
+
+    # length == 1 means there is a single osds versions entry
+    # thus all the osds are running the same version
+    - name: complete osds upgrade
+      command: "{{ container_exec_cmd_update_osd|default('') }} ceph --cluster {{ cluster }} osd require-osd-release luminous"
+      when:
+        - (ceph_versions.get('stdout', '{}')|from_json).get('osd', {}) | length == 1
+        - ceph_versions_osd | string is search("ceph version 12")
+
 
 - name: upgrade ceph mdss cluster, deactivate all rank > 0
   hosts: "{{ groups[mon_group_name|default('mons')][0] }}"
@@ -841,6 +885,7 @@
     upgrade_ceph_packages: True
   hosts:
     - "{{ iscsi_gw_group_name|default('iscsigws') }}"
+    - iscsi-gws # for backward compatibility only!
   serial: 1
   become: True
   tasks:
@@ -902,16 +947,7 @@
         name: ceph-client
 
 - name: complete upgrade
-  hosts:
-  - "{{ mon_group_name | default('mons') }}"
-  - "{{ mgr_group_name | default('mgrs') }}"
-  - "{{ osd_group_name | default('osds') }}"
-  - "{{ mds_group_name | default('mdss') }}"
-  - "{{ rgw_group_name | default('rgws') }}"
-  - "{{ nfs_group_name | default('nfss') }}"
-  - "{{ rbdmirror_group_name | default('rbdmirrors') }}"
-  - "{{ client_group_name | default('clients') }}"
-  - "{{ iscsi_gw_group_name | default('iscsigws') }}"
+  hosts: all
   become: True
   tasks:
     - import_role:
@@ -919,14 +955,14 @@
     - import_role:
         name: ceph-facts
 
-    - name: container | disallow pre-octopus OSDs and enable all new octopus-only functionality
-      command: "{{ container_binary }} exec ceph-mon-{{ hostvars[groups[mon_group_name][0]]['ansible_hostname'] }} ceph osd require-osd-release octopus"
+    - name: container | disallow pre-nautilus OSDs and enable all new nautilus-only functionality
+      command: "{{ container_binary }} exec ceph-mon-{{ hostvars[groups[mon_group_name][0]]['ansible_hostname'] }} ceph osd require-osd-release nautilus"
       delegate_to: "{{ groups[mon_group_name][0] }}"
       run_once: True
       when: containerized_deployment | bool
 
-    - name: non container | disallow pre-octopus OSDs and enable all new octopus-only functionality
-      command: "ceph --cluster {{ cluster }} osd require-osd-release octopus"
+    - name: non container | disallow pre-nautilus OSDs and enable all new nautilus-only functionality
+      command: "ceph --cluster {{ cluster }} osd require-osd-release nautilus"
       delegate_to: "{{ groups[mon_group_name][0] }}"
       run_once: True
       when: not containerized_deployment | bool

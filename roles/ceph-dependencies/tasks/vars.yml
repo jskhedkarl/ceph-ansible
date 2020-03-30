@@ -1,0 +1,18 @@
+# Include variables and define needed variables.
+- name: Include OS-specific variables.
+  include_vars: "{{ ansible_os_family }}-{{ ansible_distribution_major_version }}.yml"
+  when:
+    - ansible_distribution == "Debian"
+    - ansible_distribution_major_version == "9"
+
+# Define ceph_packages
+- name: Define Ceph dependencies.
+  set_fact:
+    ceph_packages: "{{ __ceph_packages | default([]) }}"
+  when: ceph_packages is not defined
+
+# Define ceph_packages_url
+- name: Define Ceph dependencies from URL
+  set_fact:
+    ceph_packages_url: "{{ __ceph_packages_url | default([]) }}"
+  when: ceph_packages_url is not defined

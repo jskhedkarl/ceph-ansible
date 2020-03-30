@@ -1,0 +1,35 @@
+---
+- hosts: mons[0]
+  gather_facts: false
+  become: True
+  tasks:
+    - name: Check if image already exists
+      shell: "rbd ls {{ pool_name }} --format json"
+      register: image_list
+
+    - debug: var=image_list
+
+    - name: Give fatal error if current image does not exists
+      fail:
+        msg: "Image {{ current_image_name }} does not exists in the pool {{pool_name}}"
+      when:
+        - current_image_name not in (image_list.stdout | from_json)
+    - block:
+      - name: Rename image
+        shell: "rbd mv {{ pool_name }}/{{ current_image_name }} {{ pool_name }}/{{ new_image_name }}"
+      when:
+        - new_image_name is defined
+        - new_image_name not in (image_list.stdout | from_json)
+
+    - set_fact:
+        image_name: "{{ new_image_name | default('{{ current_image_name }}') }}"
+
+    - block:
+      - name: Resize image
+        shell: "rbd resize --size {{ size }} {{ pool_name }}/{{ image_name }} --allow-shrink"
+      when: size is defined
+
+    - name: Image updated successfully
+      debug: msg="rbd image {{ current_image_name }} updated successfully"
+
+

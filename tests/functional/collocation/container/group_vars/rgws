@@ -1,7 +1,6 @@
 ---
 rgw_create_pools:
   foo:
-    pg_num: 16
-    type: replicated
+    pg_num: 17
   bar:
-    pg_num: 16
+    pg_num: 19

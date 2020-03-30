@@ -1,0 +1,46 @@
+---
+- hosts: mons[0]
+  gather_facts: false
+  become: True
+  tasks:
+    - block:
+      - name: Add data pool in cephfs
+        shell: "ceph fs add_data_pool {{ cephfs_name }} {{ item }}"
+        with_items:
+          - "{{ pool_list_to_be_added }}"
+
+      - name: Verify is pool is added
+        shell: "ceph fs ls"
+        register: update_status
+
+      - name: Give fatal error if pool not added
+        fail:
+          msg: "Unable to add pool"
+        when: '"{{ item }}" not in update_status.stdout'
+        with_items:
+          - "{{ pool_list_to_be_added }}"
+
+      when: pool_list_to_be_added is defined
+
+    - block:
+      - name: Remove data pool in cephfs
+        shell: "ceph fs rm_data_pool {{ cephfs_name }} {{ item }}"
+        with_items:
+          - "{{ pool_list_to_be_removed }}"
+
+      - name: Verify is pool is removed
+        shell: "ceph fs ls"
+        register: update_status
+
+      - name: Give fatal error if pool not removed
+        fail:
+          msg: "Unable to remove pool"
+        when: '"{{ item }}" in update_status.stdout'
+        with_items:
+          - "{{ pool_list_to_be_removed }}"
+
+      when: pool_list_to_be_removed is defined
+
+    - name: Mds update successfull
+      debug: msg="Ceph fs mds updated successfully"
+
